@@ -192,7 +192,7 @@ func TestHandleEvent(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "123preimage", received.Result.(*Nip47PayResponse).Preimage)
 	// permissions: budget overflow
-	newMaxAmount := 100
+	newMaxAmount := 10
 	err = svc.db.Model(&AppPermission{}).Where("app_id = ?", app.ID).Update("max_amount", newMaxAmount).Error
 
 	res, err = svc.HandleEvent(ctx, &nostr.Event{
@@ -271,9 +271,13 @@ func TestHandleEvent(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, NIP_47_ERROR_RESTRICTED, received.Error.Code)
 	assert.NotNil(t, res)
+	// delete the existing payments on the app
+	svc.db.Exec("delete from payments")
+
 	// get_balance: with permission
 	// update the existing permission to pay_invoice so we can get the budget info
 	err = svc.db.Model(&AppPermission{}).Where("app_id = ?", app.ID).Update("request_method", NIP_47_PAY_INVOICE_METHOD).Error
+	// Note: the budget amount (10) is set to less than the balance (21) to test the budget
 	assert.NoError(t, err)
 	// create a second permission for getting the budget
 	appPermission = &AppPermission{
@@ -298,9 +302,30 @@ func TestHandleEvent(t *testing.T) {
 	}
 	err = json.Unmarshal([]byte(decrypted), received)
 	assert.NoError(t, err)
+	// amount is the app budget (10) in msat
+	assert.Equal(t, int64(10000), received.Result.(*Nip47BalanceResponse).Balance)
+	
+	// remove the budget
+	err = svc.db.Model(&AppPermission{}).Where("app_id = ?", app.ID).Update("MaxAmount", 0).Error
+	assert.NoError(t, err)
+	res, err = svc.HandleEvent(ctx, &nostr.Event{
+		ID:      "test_event_11_2",
+		Kind:    NIP_47_REQUEST_KIND,
+		PubKey:  senderPubkey,
+		Content: newPayload,
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, res)
+	decrypted, err = nip04.Decrypt(res.Content, ss)
+	assert.NoError(t, err)
+	received = &Nip47Response{
+		Result: &Nip47BalanceResponse{},
+	}
+	err = json.Unmarshal([]byte(decrypted), received)
+	assert.NoError(t, err)
+	// amount is the wallet balance (21) but in msat
 	assert.Equal(t, int64(21000), received.Result.(*Nip47BalanceResponse).Balance)
-	assert.Equal(t, 100000, received.Result.(*Nip47BalanceResponse).MaxAmount)
-	assert.Equal(t, "never", received.Result.(*Nip47BalanceResponse).BudgetRenewal)
+
 
 	// make invoice: without permission
 	newPayload, err = nip04.Encrypt(nip47MakeInvoiceJson, ss)
