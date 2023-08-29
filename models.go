@@ -169,8 +169,6 @@ type Nip47PayResponse struct {
 }
 type Nip47BalanceResponse struct {
 	Balance       int64  `json:"balance"`
-	MaxAmount     int    `json:"max_amount"`
-	BudgetRenewal string `json:"budget_renewal"`
 }
 
 type Nip47MakeInvoiceParams struct {

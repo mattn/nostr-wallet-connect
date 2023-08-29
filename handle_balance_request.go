@@ -46,34 +46,34 @@ func (svc *Service) HandleGetBalanceEvent(ctx context.Context, request *Nip47Req
 		"appId":     app.ID,
 	}).Info("Fetching balance")
 
-	balance, err := svc.lnClient.GetBalance(ctx, event.PubKey)
-	if err != nil {
-		svc.Logger.WithFields(logrus.Fields{
-			"eventId":   event.ID,
-			"eventKind": event.Kind,
-			"appId":     app.ID,
-		}).Infof("Failed to fetch balance: %v", err)
-		nostrEvent.State = NOSTR_EVENT_STATE_HANDLER_ERROR
-		svc.db.Save(&nostrEvent)
-		return svc.createResponse(event, Nip47Response{
-			Error: &Nip47Error{
-				Code:    NIP_47_ERROR_INTERNAL,
-				Message: fmt.Sprintf("Something went wrong while fetching balance: %s", err.Error()),
-			},
-		}, ss)
-	}
-
-	responsePayload := &Nip47BalanceResponse{
-		Balance: balance * MSAT_PER_SAT,
-	}
+	var balance int64
 
 	appPermission := AppPermission{}
 	svc.db.Where("app_id = ? AND request_method = ?", app.ID, NIP_47_PAY_INVOICE_METHOD).First(&appPermission)
 
 	maxAmount := appPermission.MaxAmount
 	if maxAmount > 0 {
-		responsePayload.MaxAmount = maxAmount * MSAT_PER_SAT
-		responsePayload.BudgetRenewal = appPermission.BudgetRenewal
+		balance = int64(maxAmount) - svc.GetBudgetUsage(&appPermission)
+	} else {
+		balance, err = svc.lnClient.GetBalance(ctx, event.PubKey)
+		if err != nil {
+			svc.Logger.WithFields(logrus.Fields{
+				"eventId":   event.ID,
+				"eventKind": event.Kind,
+				"appId":     app.ID,
+			}).Infof("Failed to fetch balance: %v", err)
+			nostrEvent.State = NOSTR_EVENT_STATE_HANDLER_ERROR
+			svc.db.Save(&nostrEvent)
+			return svc.createResponse(event, Nip47Response{
+				Error: &Nip47Error{
+					Code:    NIP_47_ERROR_INTERNAL,
+					Message: fmt.Sprintf("Something went wrong while fetching balance: %s", err.Error()),
+				},
+			}, ss)
+		}
+	}
+	responsePayload := &Nip47BalanceResponse{
+		Balance: balance * MSAT_PER_SAT,
 	}
 
 	nostrEvent.State = NOSTR_EVENT_STATE_HANDLER_EXECUTED
