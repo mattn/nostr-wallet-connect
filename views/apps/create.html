@@ -93,6 +93,12 @@
   // notify the opener if present of the success full connect
   window.addEventListener("load", (event) => {
 
+    // dispatch a success event which can be listened to by the opener or by the app that embeddes the webview
+    // this gives thoes apps the chance to know the user has enabled the connection
+    const event = new CustomEvent("nwc:success", { detail: {} });
+    window.dispatchEvent(event);
+
+    // notify the opener of the successful connection
     if (window.opener) {
       window.opener.postMessage(
         {
