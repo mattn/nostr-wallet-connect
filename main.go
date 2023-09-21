@@ -85,6 +85,13 @@ func main() {
 		log.Fatalf("Failed migrate DB %v", err)
 	}
 
+	// Update payments with preimage as an empty string to use NULL instead
+	// TODO: remove this migration in a future release and make preimage column unique
+	if err := db.Table("payments").Where("preimage = ?", "").Update("preimage", nil).Error; err != nil {
+		log.Fatalf("Failed to update preimage from empty string to NULL: %v", err)
+	}
+
+
 	if cfg.NostrSecretKey == "" {
 		if cfg.LNBackendType == AlbyBackendType {
 			//not allowed

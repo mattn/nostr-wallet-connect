@@ -105,7 +105,7 @@ type Payment struct {
 	NostrEvent     NostrEvent
 	Amount         uint
 	PaymentRequest string
-	Preimage       string
+	Preimage       *string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
