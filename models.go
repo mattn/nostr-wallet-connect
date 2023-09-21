@@ -106,7 +106,7 @@ type Payment struct {
 	Amount         uint
 	PaymentRequest string
 	Preimage       string
-	CreatedAt      time.Time
+	CreatedAt      time.Time `gorm:"index"`
 	UpdatedAt      time.Time
 }
 
